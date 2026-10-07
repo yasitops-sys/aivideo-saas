@@ -12,7 +12,7 @@ import time
 from datetime import timedelta
 
 import httpx
-from sqlalchemy.orm import Session, noload
+from sqlalchemy.orm import Session
 
 from .. import models
 from ..ai_providers.registry import register_builtin_providers, registry
@@ -34,15 +34,22 @@ register_builtin_providers()
 
 def claim_next_job(db: Session) -> models.VideoGeneration | None:
     """Atomically claim one queued generation. Returns None if queue empty."""
-    # noload(): VideoGeneration.user/model are lazy="joined"; Postgres
-    # rejects FOR UPDATE when the query contains an outer join.
-    job = (
-        db.query(models.VideoGeneration)
+    # Postgres rejects FOR UPDATE when the query contains an outer join, and
+    # VideoGeneration.user/model are lazy="joined". So: lock the row first via
+    # a join-free SELECT FOR UPDATE SKIP LOCKED on the PK, then load the full
+    # job (relationships included) — the row lock is held until commit.
+    locked_id = (
+        db.query(models.VideoGeneration.id)
         .filter(models.VideoGeneration.status == models.GEN_QUEUED)
         .order_by(models.VideoGeneration.created_at)
         .with_for_update(skip_locked=True)
-        .options(noload(models.VideoGeneration.user),
-                 noload(models.VideoGeneration.model))
+        .scalar()
+    )
+    if not locked_id:
+        return None
+    job = (
+        db.query(models.VideoGeneration)
+        .filter(models.VideoGeneration.id == locked_id)
         .first()
     )
     if job:

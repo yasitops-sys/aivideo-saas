@@ -7,7 +7,7 @@ Every function:
   - updates users.credit_balance (+ totals)
 Never modify users.credit_balance anywhere else in the codebase.
 """
-from sqlalchemy.orm import Session, noload
+from sqlalchemy.orm import Session
 
 from .. import models
 from ..db import utcnow
@@ -18,21 +18,27 @@ def _locked_user(db: Session, user_id: str) -> models.User:
     # populate_existing(): the session may already hold this user in its
     # identity map (expire_on_commit=False). The locked SELECT must return
     # the CURRENT row, never a stale in-memory copy — this is a money path.
-    # noload(User.role): the role relationship is lazy="joined"; Postgres
-    # rejects FOR UPDATE when the query contains an outer join.
+    #
+    # Postgres rejects FOR UPDATE when the query contains an outer join, and
+    # User.role is lazy="joined". So: lock the row first via a join-free
+    # SELECT FOR UPDATE on the PK, then load the full user (role included)
+    # normally — the row lock is held until commit.
+    locked_id = (
+        db.query(models.User.id)
+        .filter(models.User.id == user_id)
+        .with_for_update()
+        .scalar()
+    )
+    if not locked_id:
+        raise validation("User not found.")
     user = (
         db.query(models.User)
         .filter(models.User.id == user_id)
-        .with_for_update()
         .populate_existing()
-        .options(noload(models.User.role))
         .first()
     )
     if not user or user.deleted_at:
         raise validation("User not found.")
-    # Role was noloaded to avoid the outer join (Postgres rejects FOR UPDATE
-    # with outer joins). Load it separately now that the row lock is held.
-    db.refresh(user, attribute_names=["role"])
     return user
 
 
