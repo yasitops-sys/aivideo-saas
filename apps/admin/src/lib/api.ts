@@ -5,7 +5,8 @@
  * - Errors: { error: { code, message } }. 403 -> "Access denied — admin role required".
  */
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:8000';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)
+  || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : window.location.origin);
 
 export class ApiError extends Error {
   code: string;

@@ -5,7 +5,8 @@
  */
 
 const BASE: string =
-  (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, '') || 'http://localhost:8000';
+  (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, '')
+  || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : window.location.origin);
 
 export class ApiError extends Error {
   code: string;
