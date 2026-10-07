@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aivideo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: aivideo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aivideo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://aivideo:${POSTGRES_PASSWORD:-changeme}@postgres:5432/aivideo
+      COOKIE_SECURE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+      # Built frontends (run `npm run build` in apps/web and apps/admin first);
+      # the API serves the customer app at / and the admin panel at /admin/.
+      - ./apps/web/dist:/app/apps/web/dist:ro
+      - ./apps/admin/dist:/app/apps/admin/dist:ro
+    command: >
+      sh -c "python -m app.seed &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://aivideo:${POSTGRES_PASSWORD:-changeme}@postgres:5432/aivideo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    volumes:
+      - ./backend/data:/app/data
+    command: python -m app.worker.worker
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+
+volumes:
+  pgdata:

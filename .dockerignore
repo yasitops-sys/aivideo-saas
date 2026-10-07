@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.env
+backend/data
+backend/.venv
+apps/web/node_modules
+apps/admin/node_modules
+your_files
+tour
+*.log
