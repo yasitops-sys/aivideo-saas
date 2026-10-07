@@ -30,6 +30,9 @@ def _locked_user(db: Session, user_id: str) -> models.User:
     )
     if not user or user.deleted_at:
         raise validation("User not found.")
+    # Role was noloaded to avoid the outer join (Postgres rejects FOR UPDATE
+    # with outer joins). Load it separately now that the row lock is held.
+    db.refresh(user, attribute_names=["role"])
     return user
 
 
