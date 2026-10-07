@@ -129,16 +129,46 @@ def create_app() -> FastAPI:
     # --- frontend static serving (prod) ------------------------------------
     # In production the built customer app is served at / and the admin app at
     # /admin/. In dev, run the Vite dev servers instead (see README).
+    #
+    # SPA fallback: React Router handles navigation client-side. On page
+    # reload at a route like /dashboard, the server must serve index.html
+    # (not 404) so the SPA can boot and route client-side. StaticFiles alone
+    # 404s on client-side routes, so we use catch-all routes with FileResponse.
     web_dist = os.path.join(os.path.dirname(__file__), "..", "..",
                             "apps", "web", "dist")
     admin_dist = os.path.join(os.path.dirname(__file__), "..", "..",
                               "apps", "admin", "dist")
-    if os.path.isdir(os.path.join(admin_dist, "assets")) or \
-            os.path.isfile(os.path.join(admin_dist, "index.html")):
-        app.mount("/admin", StaticFiles(directory=admin_dist, html=True),
-                  name="admin")
+
+    def _safe_file(dist_dir: str, rel: str):
+        # Serve a static file only if it exists inside dist_dir (no traversal).
+        if not rel:
+            return None
+        fp = os.path.abspath(os.path.join(dist_dir, rel))
+        if os.path.isfile(fp) and os.path.commonpath(
+                [os.path.abspath(dist_dir), fp]) == os.path.abspath(dist_dir):
+            return FileResponse(fp)
+        return None
+
+    if os.path.isfile(os.path.join(admin_dist, "index.html")):
+        @app.get("/admin", include_in_schema=False)
+        async def _admin_root():
+            return FileResponse(os.path.join(admin_dist, "index.html"))
+
+        @app.get("/admin/{full_path:path}", include_in_schema=False)
+        async def _admin_spa(full_path: str):
+            f = _safe_file(admin_dist, full_path)
+            return f if f else FileResponse(
+                os.path.join(admin_dist, "index.html"))
+
     if os.path.isfile(os.path.join(web_dist, "index.html")):
-        app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
+        # Registered last: catches all non-API paths for the customer SPA.
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def _web_spa(full_path: str):
+            if full_path.startswith("api/"):
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+            f = _safe_file(web_dist, full_path)
+            return f if f else FileResponse(
+                os.path.join(web_dist, "index.html"))
 
     return app
 
