@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # AI providers (keys never leave the server)
     AI_PROVIDER_DEFAULT: str = "mock"
     REPLICATE_API_TOKEN: str | None = None
+    GEMINI_API_KEY: str | None = None
 
     # Stripe
     STRIPE_SECRET_KEY: str | None = None

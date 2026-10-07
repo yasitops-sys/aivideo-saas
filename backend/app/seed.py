@@ -57,6 +57,10 @@ def seed():
              [5, 10], ["16:9", "9:16", "1:1"], True),
             ("VisionPro T2V", "replicate", "owner/visionpro:version",
              "text_to_video", 25, [5], ["16:9", "9:16"], False),
+            ("Veo 3.1 Fast", "google_veo", "veo-3.1-fast-generate-preview",
+             "text_to_video", 80, [4, 6, 8], ["16:9", "9:16"], True),
+            ("Omni Flash", "google_veo", "gemini-omni-flash-preview",
+             "text_to_video", 100, [4, 6, 8, 10], ["16:9", "9:16"], True),
         ]
         for name, provider, mid, gtype, cost, durs, ratios, enabled in model_defaults:
             if provider not in registry.names():

@@ -26,5 +26,7 @@ registry = ProviderRegistry()
 def register_builtin_providers() -> None:
     from .mock import MockProvider
     from .replicate import ReplicateProvider
+    from .google_veo import GoogleVeoProvider
     registry.register("mock", MockProvider())
     registry.register("replicate", ReplicateProvider())
+    registry.register("google_veo", GoogleVeoProvider())
