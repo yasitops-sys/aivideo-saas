@@ -7,7 +7,7 @@ Every function:
   - updates users.credit_balance (+ totals)
 Never modify users.credit_balance anywhere else in the codebase.
 """
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, noload
 
 from .. import models
 from ..db import utcnow
@@ -18,11 +18,14 @@ def _locked_user(db: Session, user_id: str) -> models.User:
     # populate_existing(): the session may already hold this user in its
     # identity map (expire_on_commit=False). The locked SELECT must return
     # the CURRENT row, never a stale in-memory copy — this is a money path.
+    # noload(User.role): the role relationship is lazy="joined"; Postgres
+    # rejects FOR UPDATE when the query contains an outer join.
     user = (
         db.query(models.User)
         .filter(models.User.id == user_id)
         .with_for_update()
         .populate_existing()
+        .options(noload(models.User.role))
         .first()
     )
     if not user or user.deleted_at:
